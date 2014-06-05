@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Histogram Game</title>
+		<link type="text/css" rel="stylesheet" href="histogram_game.css" />
+        <script src="d3/d3.v3.js"></script>
+    </head>
+    <body>
+        <script>
+		
+		//1. Code that runs when page is loaded
+			
+		//create centered "container" for chart and panels
+		var body = d3.select("body").append("div").attr("id","mainbody");
+		
+		//title
+		body.append("h1").attr("id","heading").text("Histogram Game");
+		
+		//define margins and size of chart
+		var margin = {top: 20, right: 30, bottom: 30, left: 40},
+			width = 450 - margin.left - margin.right,
+			height = 400 - margin.top - margin.bottom;
+			
+		//create the chart
+		var svg0 = body.append("svg")
+					.attr("id","chart")
+					.attr("width", width + margin.left + margin.right)
+					.attr("height", height + margin.top + margin.bottom)
+					.on("mousemove", mousemove)
+					.on("mousedown", mousedown);
+					
+		var svg = svg0.append("g")
+					.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+				
+		/*
+		svg.append("text")
+			.attr("font-family","Arial,sans-serif")
+			.attr("font-size",20)
+			.attr("x", width)
+			.attr("y", height-5)
+			.style("text-anchor", "end")
+			.text("X");
+		
+		svg.append("text")
+			.attr("font-family","Arial,sans-serif")
+			.attr("font-size",20)
+			.attr("x",0)
+			.attr("y",20)
+			.attr("transform", "rotate(-90)")
+			.style("text-anchor","end")
+			.text("Y"); 
+			
+		*/	
+		
+		//group for stat display
+		
+		var displayPanel = body.append("div").attr("id","displayPanel");
+		
+		var statPanel = displayPanel.append("div").attr("id","statdiv");
+					
+		var list = statPanel.append("ul")
+								.attr("id", "statlist");
+		
+		var controlpanel = displayPanel.append("div").attr("id","controlpanel");
+		
+		//instructional text
+		controlpanel.append("p").text("Guess the percentile!").attr("class","paragraphText");
+		controlpanel.append("p").text("Click on the histogram to mark your guess.").attr("class","paragraphText");
+		
+		
+		//reset button
+		controlpanel.append("input")
+			.attr("type", "button")
+			.attr("value", "Restart" )
+			.attr("onclick", "restart()");
+		
+		//initialize scales for chart
+		var xScale = d3.scale.linear()
+			.range([0,width]);
+		
+		var yScale = d3.scale.linear()
+			.range([height,0]);
+		
+		var values = rnorm(300),
+			iter = 0
+			freeze = false;
+		
+		//update the domain of the x-scale
+		
+		xScale.domain([d3.min(values),d3.max(values)]);
+		
+		//use the histogram layout
+		var data = d3.layout.histogram().bins(xScale.ticks(15))(values);
+		
+		//update the domain of the y-scale
+		yScale.domain([0, d3.max(data, function(d) { return d.y; })]);
+		
+		console.log(data);
+		
+		//----------------------------------------------------START----------------------------------------------------
+
+		updateChart(data);
+		
+		var chartline = svg.append("rect")
+			.attr("width", 500)
+			.attr("height", height)
+			.attr("transform","translate("+ width + "," + 0 + ")"+" scale(" + -1 + "," + 1 + ")")
+			.attr("class", "cursor");
+		
+		
+		//Initial display
+		//updateChart(data);
+		
+		function updateChart(data){
+			
+			var xAxis = d3.svg.axis()
+				.scale(xScale)
+				.orient("bottom");
+				
+			//DATA JOIN
+			var bar = svg.selectAll(".bar")
+				.data(data);
+				
+			//UPDATE
+			
+			bar.transition().duration(300)
+					.attr("transform", function(d) {return "translate(" + xScale(d.x) + "," + yScale(d.y) + ")"; })
+				.select("rect")
+					.attr("x", 1)
+					.attr("width", xScale(data[0].dx+d3.min(values)) - 1)
+					.attr("height", function(d) { return height - yScale(d.y); });
+			/*		
+			bar.select("text")
+				.attr("x", xScale(data[0].dx+d3.min(values))/3)
+				.text(function(d) { return Math.round(d.y*100)/100; });
+			*/
+			
+			//EXIT
+			
+			//bar.select("text").remove();
+			bar.exit().remove();
+			
+			svg.selectAll(".axis").data([]).exit().transition().duration(1200).style("fill-opacity",1e-6).remove();
+			
+			//ENTER
+			bar.enter().append("g")
+					.attr("class","bar")
+					.attr("transform", function(d) {return "translate(" + xScale(d.x) + "," + height + ")"; })
+				.append("rect")
+					.attr("x", 1)
+					.attr("width", xScale(data[0].dx+d3.min(values)) - 1)
+					.attr("height", function(d) { return 0; });
+					
+				
+			bar.transition().duration(300)
+					.attr("transform", function(d) {return "translate(" + xScale(d.x) + "," + yScale(d.y) + ")"; })
+				.select("rect")
+					.attr("height", function(d) { return height - yScale(d.y); })
+					.attr("width", xScale(data[0].dx+d3.min(values)) - 1);
+			
+			
+			/*			
+			bar.append("text")
+				.attr("dy", ".2em")
+				.attr("y", 10)
+				.attr("x", xScale(data[0].dx+d3.min(values))/3)
+				.attr("text-anchor", "center")
+				.text(function(d) { return Math.round(d.y*100)/100; });
+			*/
+			
+			svg.append("g")
+				.attr("class", "x axis")
+				.attr("transform", "translate(0," + height + ")")
+				.call(xAxis);
+
+			
+		}
+		
+		
+		//---------------------------------------------------UTILITY FUNCTIONS-----------------------------------------
+		
+		//random normal
+		function rnorm(num_samples, mean, sd) {
+			var func = d3.random.normal();
+			var samples = [];
+			for (var i = 0; i < num_samples; i++ ){
+				samples[i]=func(mean,sd);
+			}
+			return samples;
+		}
+		
+		//empirical CDF
+		function empiricalCDF(quantile, dataValues){
+			var count = 0;
+			var n = dataValues.length;
+			var sortData = dataValues.sort();
+			for (i = 0; i < n; i++){
+				if (quantile < sortData[i]){
+					return i/n;	
+				}
+			}
+			return 1;
+		}
+		
+		function mousemove() {
+		 if (!freeze) {
+			var coords = d3.mouse(this)[0] - margin.left
+			chartline.attr("width", width-coords);
+		  }
+		}
+		
+		function mousedown() {
+			var coords = d3.mouse(this)[0]-margin.left;
+			chartline.attr("width", width-coords);
+			console.log(empiricalCDF(xScale.invert(coords), values));
+			freeze = !freeze;
+		}
+		
+	
+		function restart() {
+			values = rnorm(500);
+			iter = 0;
+			freeze = false;
+			
+			//update the domain of the x-scale
+			xScale.domain([d3.min(values),d3.max(values)]);
+		
+			//use the histogram layout
+			data = d3.layout.histogram().bins(xScale.ticks(15))(values);
+			
+			//update the domain of the y-scale
+			yScale.domain([0, d3.max(data, function(d) { return d.y; })]);
+				iter = 0;
+			freeze = false;
+			
+			console.log(d3.min(values));
+			console.log(d3.max(values));
+			
+			xScale.domain([d3.min(values),d3.max(values)]);
+			
+			//use the histogram layout
+			data = d3.layout.histogram().bins(xScale.ticks(15))(values);
+
+			//update the domain of the y-scale
+			yScale.domain([0, d3.max(data, function(d) { return d.y; })]);
+			
+			updateChart(data);
+			
+			chartline.remove();			
+					
+			chartline = svg.append("rect")
+				.attr("width", 500)
+				.attr("height", height)
+				.attr("transform","translate("+ width + "," + 0 + ")"+" scale(" + -1 + "," + 1 + ")")
+				.attr("class", "cursor");
+			
+		}
+		
+		console.log(empiricalCDF(-0.25,values));
+		
+		</script>
+	
+    </body>
+</html>     
