@@ -80,18 +80,15 @@
 			.range([0,width]);
 		
 		var yScale = d3.scale.linear()
-			.range([height,0]);
+			.range([height,30]);
 		
-		var values = rnorm(300),
+		var values = generateData(),
 			iter = 0,
 			freeze = false,
-			possibleStates = ["mean", "median", "percentile"],
-			state = possibleStates[Math.floor(Math.random()*3)],
-			targetPercentile = 50,
-			stats = calcStats(values),
-			mousePos = 0;
+			targetPercentile = Math.round(Math.random()*100),
+			mousePos = "n/a",
+			stats = calcStats(values);
 			
-		console.log(state);
 		
 		//update the domain of the x-scale
 		
@@ -108,23 +105,13 @@
 
 		updateChart(data);
 		
-		if (state == "percentile"){
-			var chartline = svg.append("rect")
-				.attr("width", 500)
-				.attr("height", height)
-				.attr("transform","translate("+ width + "," + 0 + ")"+" scale(" + -1 + "," + 1 + ")")
-				.attr("class", "cursor");
-		}
-		else {
-			var chartline = svg.append("rect")
-				.attr("width", 3)
-				.attr("height", height)
-				.attr("transform", "translate(-50,0)");
-	
-		}
-		
+		var chartline = svg.append("rect")
+			.attr("width", 500)
+			.attr("height", height)
+			.attr("transform","translate("+ width + "," + 0 + ")"+" scale(" + -1 + "," + 1 + ")")
+			.attr("class", "cursor");
+
 		//Initial display
-		//updateChart(data);
 		
 		function updateChart(data){
 			
@@ -147,7 +134,7 @@
 					.attr("width", xScale(data[0].dx+d3.min(values)) - 1)
 					.attr("height", function(d) { return height - yScale(d.y); });
 					
-			statDisplayPlot.text(function(d) { return d.name+":	"+d.stat;});
+			statDisplayPlot.text(function(d) { return d.name+":	"+d.stat;}).attr("fill", function(d) {return d.color;});
 			
 			//EXIT
 			
@@ -155,6 +142,8 @@
 			bar.exit().remove();
 			
 			svg.selectAll(".axis").data([]).exit().transition().duration(1200).style("fill-opacity",1e-6).remove();
+			
+			console.log(data);
 			
 			//ENTER
 			bar.enter().append("g")
@@ -186,7 +175,7 @@
 						.attr("y", function(d, i) {return i*15;})
 						.attr("text-anchor", "end")
 						.attr("font-family", "Arial, sans-serif")
-						.attr("fill", function(d, i) {if (i == 1){return "red";} else{ return "black";}})
+						.attr("fill", function(d) {return d.color;})
 						.text(function(d) { return d.name+":	"+d.stat;});
 			
 
@@ -198,12 +187,26 @@
 		
 		//random normal
 		function rnorm(num_samples, mean, sd) {
-			var func = d3.random.normal();
+			var func = d3.random.normal(mean,sd);
 			var samples = [];
 			for (var i = 0; i < num_samples; i++ ){
-				samples[i]=func(mean,sd);
+				samples[i]=func();
 			}
 			return samples;
+		}
+		
+		function generateData(){
+			switch( Math.floor(Math.random()*2)){
+				case 0:
+					return rnorm(300,0,1);
+					break;
+				case 1:
+					var first = rnorm(150,-3*Math.random(),1);
+					var second = rnorm(150,3*Math.random(),1);
+					return first.concat(second);
+					break;					
+			}
+			
 		}
 		
 		//empirical CDF
@@ -226,12 +229,8 @@
 			var coords = d3.mouse(this)[0] - margin.left
 			mousePos = xScale.invert(coords);
 			console.log(mousePos);
-			if (state == "percentile") {
-				chartline.attr("width", width-coords);
-			}
-			else{
-				chartline.attr("transform","translate("+coords+",0)");
-			}
+			chartline.attr("width", width-coords);
+			
 		  }
 		  stats = calcStats(values, mousePos);
 		}
@@ -239,22 +238,20 @@
 		function mousedown() {
 			if (freeze == false) {
 				var coords = d3.mouse(this)[0]-margin.left;
-				if (state == "percentile"){
-					chartline.attr("width", width-coords);
-				}
-				else {
-					chartline.attr("transform","translate("+coords+",0)");
-				}
+				chartline.attr("width", width-coords);
 				freeze = true;
 			}
+			updateChart(data);
 		}
 		
 	
 		function restart() {
-			values = rnorm(500);
+			values = generateData();
 			iter = 0;
 			freeze = false;
-			state = possibleStates[Math.floor(Math.random()*3)];
+			mousePos = "n/a";
+			targetPercentile = Math.round(Math.random()*100);
+			stats = calcStats(values, mousePos);
 			
 			//update the domain of the x-scale
 			xScale.domain([d3.min(values),d3.max(values)]);
@@ -277,45 +274,51 @@
 			
 			updateChart(data);
 			
-			console.log(state);
+			chartline.remove();
+	
+			chartline = svg.append("rect")
+				.attr("width", 500)
+				.attr("height", height)
+				.attr("transform","translate("+ width + "," + 0 + ")"+" scale(" + -1 + "," + 1 + ")")
+				.attr("class", "cursor");
 			
-			chartline.remove();			
-				
-			if (state == "percentile"){
-				chartline = svg.append("rect")
-					.attr("width", 500)
-					.attr("height", height)
-					.attr("transform","translate("+ width + "," + 0 + ")"+" scale(" + -1 + "," + 1 + ")")
-					.attr("class", "cursor");
-			}
-			
-		
-			else {
-				chartline = svg.append("rect")
-					.attr("width", 3)
-					.attr("height", height)
-					.attr("transform", "translate(-50,0)");		
-			}
-		
 			
 		}
 		
 		function calcStats(values, mousePos){
+			var guess;
+			var percentile;
+			var score = "black";
+			if(!isNaN(mousePos))
+				{guess=Math.round(mousePos*100)/100;
+				percentile = Math.round(empiricalCDF(guess, values)*100);} 
+			else{guess=percentile=""}
+			
+			if(Math.abs(percentile-targetPercentile)<5){
+				score = "green";
+			}
+			else if(Math.abs(percentile-targetPercentile)<10){
+				score = "#FF9900"
+			}
+			else{
+				score = "red";
+			}
+			
 			return [
 				{
-				stat: Math.round(d3.median(values, function(d) {return d;})*100)/100,
-				name: "median",
+				stat: targetPercentile+" %",
+				name: "target percentile",
 				color: "black"
 				},
-				{
-				stat: Math.round(d3.mean(values, function(d) {return d;})*100)/100,
-				name: "mean",
+				/*{
+				stat: guess,
+				name: "your guess",
 				color: "black"
-				},
+				},*/
 				{
-				stat: Math.round(mousePos*100)/100,
-				name: "mouse position",
-				color: "black"
+				stat: percentile +" %",
+				name: "your percentile",
+				color: score
 				}
 			];
 		

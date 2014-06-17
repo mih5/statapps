@@ -1,0 +1,15 @@
+CITATIONS
+
+Std. Normal Cdf
+6/17/2014
+Bertjan Broeksema
+Stack Overflow
+http://stackoverflow.com/questions/14846767/std-normal-cdf-normal-cdf-or-error-function
+
+
+Sample from skew-normal dist.
+6/17/2014
+Adelchi Azzalini 
+Dipartimento di Scienze Statistiche
+Università di Padova 
+http://azzalini.stat.unipd.it/SN/faq-r.html
